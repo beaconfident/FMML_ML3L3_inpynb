@@ -1,0 +1,377 @@
+FOUNDATIONS OF MODERN MACHINE LEARNING, IIIT Hyderabad
+MODULE: CLASSIFICATION-1
+LAB-3 : Using KNN for Text Classification
+Module Coordinator: Jashn Arora
+Section 1: Understanding NLP tools
+In this lab we will be using KNN on a real world NLP application i.e. is text classification. But first look at some NLP techniques for text classification and tools that we use when we want to use python for NLP.
+
+Section 1.2: Data Cleaning and Preprocessing step
+Raw text must be processed and converted into a form so that it is suitable to use with various machine-learning algorithms.
+In case of text, there are lots of things that need to be taken into account.
+
+Removing numbers from the text
+Handling capitalization and punctuation.
+Stemming and Lemmatizing text.
+And most importantly, one can't just use words or images directly in algorithms; they need to be converted into vectors- a form that algorithms can understand.
+
+NLTK
+NLTK (or Natural Language Tool Kit) is a commonly used library for processing text. We will use this tool in this lab. Lets first install it.
+
+
+[ ]
+import nltk
+nltk.download('stopwords')
+nltk.download('punkt')
+nltk.download('averaged_perceptron_tagger')
+nltk.download('wordnet')
+nltk.download('omw-1.4')
+[nltk_data] Downloading package stopwords to /root/nltk_data...
+[nltk_data]   Unzipping corpora/stopwords.zip.
+[nltk_data] Downloading package punkt to /root/nltk_data...
+[nltk_data]   Unzipping tokenizers/punkt.zip.
+[nltk_data] Downloading package averaged_perceptron_tagger to
+[nltk_data]     /root/nltk_data...
+[nltk_data]   Unzipping taggers/averaged_perceptron_tagger.zip.
+[nltk_data] Downloading package wordnet to /root/nltk_data...
+[nltk_data] Downloading package omw-1.4 to /root/nltk_data...
+True
+
+[ ]
+import re
+import numpy
+from nltk.corpus import stopwords
+from nltk.stem import WordNetLemmatizer
+from nltk.stem import SnowballStemmer
+from nltk.tokenize import word_tokenize
+from nltk import pos_tag
+from nltk.corpus import wordnet
+from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
+from bs4 import BeautifulSoup
+
+def cleanText(text, lemmatize, stemmer):
+    """Method for cleaning text from train and test data. Removes numbers, punctuation, and capitalization. Stems or lemmatizes text."""
+
+    if isinstance(text, float):
+        text = str(text)
+    if isinstance(text, numpy.int64):
+        text = str(text)
+    try:
+        text = text.decode()
+    except AttributeError:
+        pass
+
+    soup = BeautifulSoup(text, "lxml")
+    text = soup.get_text()
+    text = re.sub(r"[^A-Za-z]", " ", text)
+    text = text.lower()
+
+
+    if lemmatize:
+        wordnet_lemmatizer = WordNetLemmatizer()
+
+        def get_tag(tag):
+            if tag.startswith('J'):
+                return wordnet.ADJ
+            elif tag.startswith('V'):
+                return wordnet.VERB
+            elif tag.startswith('N'):
+                return wordnet.NOUN
+            elif tag.startswith('R'):
+                return wordnet.ADV
+            else:
+                return ''
+
+        text_result = []
+        tokens = word_tokenize(text)  # Generate list of tokens
+        tagged = pos_tag(tokens)
+        for t in tagged:
+            try:
+                text_result.append(wordnet_lemmatizer.lemmatize(t[0], get_tag(t[1][:2])))
+            except:
+                text_result.append(wordnet_lemmatizer.lemmatize(t[0]))
+        return text_result
+
+    if stemmer:
+        text_result = []
+        tokens = word_tokenize(text)
+        snowball_stemmer = SnowballStemmer('english')
+        for t in tokens:
+            text_result.append(snowball_stemmer.stem(t))
+        return text_result
+
+[ ]
+sample_text = "Troubling"
+sample_text_result = cleanText(sample_text, lemmatize=False, stemmer=True)
+sample_text_result = " ".join(str(x) for x in sample_text_result)
+print(sample_text)
+print(sample_text_result)
+sample_text_result = cleanText(sample_text, lemmatize=True, stemmer=False)
+sample_text_result = " ".join(str(x) for x in sample_text_result)
+print(sample_text_result)
+Troubling
+troubl
+trouble
+Section 1.2: BAG OF WORDS
+A bag-of-words model, or BoW for short, is a way of extracting features from text for use in modeling, such as with machine learning algorithms.
+
+The approach is very simple and flexible, and can be used in many ways for extracting features from documents.
+
+A bag-of-words is a representation of text that describes the occurrence of words within a document. It is called a “bag” of words, because any information about the order or structure of words in the document is discarded. The model is only concerned with whether known words occur in the document, not where in the document.
+
+
+[ ]
+# Functions to convert document(s) to a list of words, with the option of removing stopwords. Returns document-term matrix.
+
+def createBagOfWords(train, test, remove_stopwords, lemmatize, stemmer):
+    if remove_stopwords:
+        vectorizer = CountVectorizer(analyzer='word', input='content', stop_words=stopwords.words('english'))
+    else:
+        vectorizer = CountVectorizer(analyzer='word', input='content')
+
+    clean_train = []
+    for paragraph in train:
+        paragraph_result = cleanText(paragraph, lemmatize, stemmer)
+        paragraph = " ".join(str(x) for x in paragraph_result)
+        clean_train.append(paragraph)
+
+    clean_test = []
+    for paragraph in test:
+        paragraph_result = cleanText(paragraph, lemmatize, stemmer)
+        paragraph = " ".join(str(x) for x in paragraph_result)
+        clean_test.append(paragraph)
+
+    bag_of_words_train = vectorizer.fit_transform(clean_train).toarray()
+    bag_of_words_test = vectorizer.transform(clean_test).toarray()
+    return bag_of_words_train, bag_of_words_test
+
+Section 1.3: TF-IDF
+TF-IDF technique is used to find meaning of sentences consisting of words and cancels out the incapabilities of Bag of Words technique which is good for text classification or for helping a machine read words in numbers.
+
+The number of times a term occurs in a document is called its Term frequency (TF).
+
+Document frequency is the number of documents in which the word is present. Inverse DF (IDF) is the inverse of the document frequency which measures the informativeness of term t.
+
+
+[ ]
+def createTFIDF(train, test, remove_stopwords, lemmatize, stemmer):
+    if remove_stopwords:
+        vectorizer = TfidfVectorizer(analyzer='word', input='content', stop_words=stopwords.words('english'))
+    else:
+        vectorizer =  TfidfVectorizer(analyzer='word', input='content')
+
+    clean_train = []
+    for paragraph in train:
+        paragraph_result = cleanText(paragraph, lemmatize, stemmer)
+        paragraph = " ".join(str(x) for x in paragraph_result)
+        clean_train.append(paragraph)
+
+    clean_test = []
+    for paragraph in test:
+        paragraph_result = cleanText(paragraph, lemmatize, stemmer)
+        paragraph = " ".join(str(x) for x in paragraph_result)
+        clean_test.append(paragraph)
+
+    tfidf_train = vectorizer.fit_transform(clean_train).toarray()
+    tfidf_test = vectorizer.transform(clean_test).toarray()
+    return tfidf_train, tfidf_test
+Section 2: UNDERSTANDING THE DATA : A REVIEWS DATASET
+Sentiment analysis is the interpretation and classification of emotions (such as positive, negative and neutral) within text data using text analysis techniques.
+Given below is a dataset consisting of reviews along with sentiment class (positive or negative).
+
+
+[ ]
+# Upload the Reviews CSV file that has been shared with you.
+# Run this cell, click on the 'Choose files' button and upload the file.
+from google.colab import files
+uploaded = files.upload()
+
+
+[ ]
+import pandas as pd
+df = pd.read_csv('reviews.csv')
+
+[ ]
+df = df.dropna()
+
+[ ]
+df.to_csv('reviews.csv', index=False)
+Section 3: KNN MODEL
+Given below are two KNN models; in the first case we are using Bag-of-Words and in the second case we are using TF-IDF. Note the different metrics and parameters used in each.
+
+
+[ ]
+from sklearn import metrics, neighbors
+from sklearn.model_selection import train_test_split, cross_val_score, cross_val_predict
+
+## TASK - 1: Tweak the models below and see results with different parameters and distance metrics.
+
+def bow_knn():
+    """Method for determining nearest neighbors using bag-of-words and K-Nearest Neighbor algorithm"""
+
+    training_data = pd.read_csv('reviews.csv')
+    X_train, X_test, y_train, y_test = train_test_split(training_data["sentence"], training_data["sentiment"], test_size=0.2, random_state=5)
+    X_train, X_test = createBagOfWords(X_train, X_test, remove_stopwords=True, lemmatize=True, stemmer=False)
+    # print(X_train)
+    knn = neighbors.KNeighborsClassifier(n_neighbors=5, weights='uniform', algorithm='auto', leaf_size=30, p=2, metric='euclidean', metric_params=None, n_jobs=1)
+
+    knn.fit(X_train, y_train)
+    predicted = knn.predict(X_test)
+    acc = metrics.accuracy_score(y_test, predicted)
+    print('KNN with BOW accuracy = ' + str(acc * 100) + '%')
+
+    scores = cross_val_score(knn, X_train, y_train, cv=3)
+    print("Cross Validation Accuracy: %0.2f" % (scores.mean()))
+    print(scores)
+    print('\n')
+    return predicted, y_test
+
+
+def tfidf_knn():
+    """Method for determining nearest neighbors using tf-idf and K-Nearest Neighbor algorithm"""
+
+    training_data = pd.read_csv('reviews.csv')
+    X_train, X_test, y_train, y_test = train_test_split(training_data["sentence"], training_data["sentiment"],
+                                                        test_size=0.2, random_state=5)
+    X_train, X_test = createTFIDF(X_train, X_test, remove_stopwords=True, lemmatize=True, stemmer=False)
+    # print(X_train)
+    knn = neighbors.KNeighborsClassifier(n_neighbors=5, weights='distance', algorithm='brute', leaf_size=30, p=2,
+                                         metric='cosine', metric_params=None, n_jobs=1)
+
+    knn.fit(X_train, y_train)
+    predicted = knn.predict(X_test)
+    acc = metrics.accuracy_score(y_test, predicted)
+    print('KNN with TFIDF accuracy = ' + str(acc * 100) + '%')
+
+    scores = cross_val_score(knn, X_train, y_train, cv=3)
+    print("Cross Validation Accuracy: %0.2f" % (scores.mean()))
+    print(scores)
+    return predicted, y_test
+Note: Cross-validation will be discussed in detail in the upcoming lab session.
+
+
+[ ]
+## KNN accuracy after using BoW
+predicted, y_test = bow_knn()
+<ipython-input-2-3fc32437a98d>:24: MarkupResemblesLocatorWarning: The input looks more like a filename than markup. You may want to open this file and pass the filehandle into Beautiful Soup.
+  soup = BeautifulSoup(text, "lxml")
+KNN with BOW accuracy = 62.30366492146597%
+/usr/local/lib/python3.10/dist-packages/sklearn/model_selection/_split.py:776: UserWarning: The least populated class in y has only 1 members, which is less than n_splits=3.
+  warnings.warn(
+Cross Validation Accuracy: 0.62
+[0.60784314 0.58431373 0.66141732]
+
+
+
+[ ]
+## KNN accuracy after using TFIDF
+predicted, y_test = tfidf_knn()
+<ipython-input-2-3fc32437a98d>:24: MarkupResemblesLocatorWarning: The input looks more like a filename than markup. You may want to open this file and pass the filehandle into Beautiful Soup.
+  soup = BeautifulSoup(text, "lxml")
+KNN with TFIDF accuracy = 70.15706806282722%
+/usr/local/lib/python3.10/dist-packages/sklearn/model_selection/_split.py:776: UserWarning: The least populated class in y has only 1 members, which is less than n_splits=3.
+  warnings.warn(
+Cross Validation Accuracy: 0.73
+[0.7254902  0.74117647 0.72834646]
+Section 4: SPAM TEXT DATASET
+Now let's use what we've learnt to classify texts as spam or not spam.
+
+
+[ ]
+# Upload the spam text data CSV file that has been shared with you. You can also download the file from https://www.kaggle.com/datasets/uciml/sms-spam-collection-dataset
+# Run this cell, click on the 'Choose files' button and upload the file.
+from google.colab import files
+uploaded = files.upload()
+
+
+[ ]
+import pandas as pd
+df = pd.read_csv('spam.csv')
+df
+
+
+[ ]
+df['Category'] = df['Category'].map({'ham': 0, 'spam': 1})
+
+[ ]
+df.head(5)
+
+
+[ ]
+len(df)
+5572
+
+[ ]
+from sklearn import metrics, neighbors
+from sklearn.model_selection import train_test_split, cross_val_score, cross_val_predict
+
+## TASK - 2: Tweak the models below and see results with different parameters and distance metrics.
+
+def bow_knn():
+    """Method for determining nearest neighbors using bag-of-words and K-Nearest Neighbor algorithm"""
+
+    training_data = pd.read_csv('spam.csv')
+    training_data['Category'] = training_data['Category'].map({'ham': 0, 'spam': 1})
+    X_train, X_test, y_train, y_test = train_test_split(training_data["Message"], training_data["Category"], test_size=0.2, random_state=5)
+    X_train, X_test = createBagOfWords(X_train, X_test, remove_stopwords=True, lemmatize=True, stemmer=False)
+    knn = neighbors.KNeighborsClassifier(n_neighbors=5, weights='uniform', algorithm='auto', leaf_size=30, p=2, metric='euclidean', metric_params=None, n_jobs=1)
+
+    knn.fit(X_train, y_train)
+    predicted = knn.predict(X_test)
+    acc = metrics.accuracy_score(y_test, predicted)
+    print('KNN with BOW accuracy = ' + str(acc * 100) + '%')
+
+    scores = cross_val_score(knn, X_train, y_train, cv=3)
+    print("Cross Validation Accuracy: %0.2f" % (scores.mean()))
+    print(scores)
+    print('\n')
+    return predicted, y_test
+
+
+def tfidf_knn():
+    """Method for determining nearest neighbors using tf-idf and K-Nearest Neighbor algorithm"""
+
+    training_data = pd.read_csv('spam.csv')
+    training_data['Category'] = training_data['Category'].map({'ham': 0, 'spam': 1})
+    X_train, X_test, y_train, y_test = train_test_split(training_data["Message"], training_data["Category"], test_size=0.2, random_state=5)
+    X_train, X_test = createTFIDF(X_train, X_test, remove_stopwords=True, lemmatize=True, stemmer=False)
+    knn = neighbors.KNeighborsClassifier(n_neighbors=5, weights='distance', algorithm='brute', leaf_size=30, p=2, metric='cosine', metric_params=None, n_jobs=1)
+
+    knn.fit(X_train, y_train)
+    predicted = knn.predict(X_test)
+    acc = metrics.accuracy_score(y_test, predicted)
+    print('KNN with TFIDF accuracy = ' + str(acc * 100) + '%')
+
+    scores = cross_val_score(knn, X_train, y_train, cv=3)
+    print("Cross Validation Accuracy: %0.2f" % (scores.mean()))
+    print(scores)
+    return predicted, y_test
+
+[ ]
+# This cell may take some time to run
+predicted, y_test = bow_knn()
+<ipython-input-2-3fc32437a98d>:24: MarkupResemblesLocatorWarning: The input looks more like a filename than markup. You may want to open this file and pass the filehandle into Beautiful Soup.
+  soup = BeautifulSoup(text, "lxml")
+KNN with BOW accuracy = 92.19730941704036%
+Cross Validation Accuracy: 0.91
+[0.90713324 0.90040377 0.91245791]
+
+
+
+[ ]
+# This cell may take some time to run
+predicted, y_test = tfidf_knn()
+<ipython-input-2-3fc32437a98d>:24: MarkupResemblesLocatorWarning: The input looks more like a filename than markup. You may want to open this file and pass the filehandle into Beautiful Soup.
+  soup = BeautifulSoup(text, "lxml")
+KNN with TFIDF accuracy = 98.56502242152466%
+Cross Validation Accuracy: 0.97
+[0.96837147 0.96769852 0.96363636]
+Questions to Think About and Answer
+Why does the TF-IDF approach generally result in a better accuracy than Bag-of-Words ?
+Can you think of techniques that are better than both BoW and TF-IDF ?
+Read about Stemming and Lemmatization from the resources given below. Think about the pros/cons of each.
+Useful Resources for further reading
+Stemming and Lemmatization: https://nlp.stanford.edu/IR-book/html/htmledition/stemming-and-lemmatization-1.html
+TF-IDF and BoW : https://www.analyticsvidhya.com/blog/2020/02/quick-introduction-bag-of-words-bow-tf-idf/
+TF-IDF: https://scikit-learn.org/stable/modules/generated/sklearn.feature_extraction.text.TfidfTransformer.html
+
+[ ]
